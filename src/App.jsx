@@ -2,8 +2,15 @@ import { useMemo, useState } from 'react'
 
 const tabs = ['Feed', 'Home', 'Drawings', 'Documents']
 
-const FEEDHANDLER_BASE =
-  import.meta.env.VITE_FEEDHANDLER_BASE_URL || '/api'
+const FEEDHANDLER_BASE = (() => {
+  const configured = (import.meta.env.VITE_FEEDHANDLER_BASE_URL || '').trim()
+  if (configured) return configured
+
+  // Local dev uses Vite proxy; production should default to Railway API.
+  return import.meta.env.DEV
+    ? '/api'
+    : 'https://onsitexfeedhandler-production.up.railway.app'
+})()
 const DEFAULT_JOBSITE = import.meta.env.VITE_DEFAULT_JOBSITE_ID || 'twujobsite'
 const DEFAULT_EMAIL = import.meta.env.VITE_DEFAULT_USER_EMAIL || ''
 
