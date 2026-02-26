@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 
 const tabs = ['Feed', 'Home', 'Drawings', 'Documents']
 
@@ -13,6 +13,8 @@ const FEEDHANDLER_BASE = (() => {
 })()
 const DEFAULT_JOBSITE = import.meta.env.VITE_DEFAULT_JOBSITE_ID || 'twujobsite'
 const DEFAULT_EMAIL = import.meta.env.VITE_DEFAULT_USER_EMAIL || ''
+const MAX_STATUS_POLLS = 30
+const STATUS_POLL_INTERVAL_MS = 3000
 
 function createSessionId() {
   if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID()
@@ -33,6 +35,15 @@ function clip(text, max = 220) {
   return text.length > max ? `${text.slice(0, max)}...` : text
 }
 
+function wait(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+function deriveTitleFromFilename(filename) {
+  if (!filename) return 'Uploaded Document'
+  return filename.replace(/\.pdf$/i, '').trim() || filename
+}
+
 export default function App() {
   const [activeTab, setActiveTab] = useState('Home')
   const [messages, setMessages] = useState([
@@ -41,8 +52,100 @@ export default function App() {
   const [documents, setDocuments] = useState([])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
+  const [uploading, setUploading] = useState(false)
+  const [lastUploadedName, setLastUploadedName] = useState('')
+  const fileInputRef = useRef(null)
 
   const sessionId = useMemo(() => getSessionId(), [])
+
+  function addAssistantMessage(text) {
+    setMessages((prev) => [...prev, { id: `a-${Date.now()}-${prev.length}`, role: 'assistant', text }])
+  }
+
+  async function pollDocumentStatus(documentId) {
+    const endpoint = `${FEEDHANDLER_BASE.replace(/\/$/, '')}/document_status/${encodeURIComponent(documentId)}/`
+
+    for (let i = 0; i < MAX_STATUS_POLLS; i += 1) {
+      try {
+        const res = await fetch(endpoint, { method: 'GET' })
+        if (res.ok) {
+          const data = await res.json()
+          const processed = Boolean(
+            data?.document?.processed ?? data?.processing_status?.processed ?? false
+          )
+          if (processed) return true
+        }
+      } catch {
+        // Continue polling on transient errors.
+      }
+      await wait(STATUS_POLL_INTERVAL_MS)
+    }
+
+    return false
+  }
+
+  async function uploadDocument(file) {
+    if (!file || uploading) return
+    setUploading(true)
+    setLastUploadedName(file.name)
+
+    try {
+      const endpoint = `${FEEDHANDLER_BASE.replace(/\/$/, '')}/upload_document/`
+      const form = new FormData()
+      form.append('file', file)
+      form.append('title', deriveTitleFromFilename(file.name))
+      form.append('userEmail', DEFAULT_EMAIL)
+      form.append('jobsiteId', DEFAULT_JOBSITE)
+
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        body: form
+      })
+
+      if (!res.ok) {
+        const errorText = await res.text()
+        throw new Error(`HTTP ${res.status}${errorText ? `: ${errorText}` : ''}`)
+      }
+
+      const data = await res.json()
+      const documentId = data?.document_id || data?.documentId
+      if (!documentId) {
+        throw new Error('Upload returned no document_id')
+      }
+
+      addAssistantMessage(`Upload received: ${file.name}\nIndexing started. I will notify you when it is ready.`)
+      const processed = await pollDocumentStatus(documentId)
+      if (processed) {
+        addAssistantMessage(`Document ready: ${file.name}\nYou can now ask questions about it.`)
+      } else {
+        addAssistantMessage(
+          `Upload started for ${file.name}, but indexing is still running.\nYou can ask now, but results may improve in a minute.`
+        )
+      }
+    } catch (err) {
+      const detail = err instanceof Error && err.message ? err.message : 'Unknown upload error'
+      addAssistantMessage(`Upload failed for ${file.name}\n${detail}`)
+    } finally {
+      setUploading(false)
+      if (fileInputRef.current) fileInputRef.current.value = ''
+    }
+  }
+
+  function onUploadClick() {
+    if (uploading) return
+    fileInputRef.current?.click()
+  }
+
+  function onFileSelected(event) {
+    const file = event.target.files?.[0]
+    if (!file) return
+    if (!/\.pdf$/i.test(file.name) && file.type !== 'application/pdf') {
+      addAssistantMessage('Please upload a PDF file.')
+      event.target.value = ''
+      return
+    }
+    uploadDocument(file)
+  }
 
   async function sendMessage() {
     const query = input.trim()
@@ -153,6 +256,21 @@ export default function App() {
       </main>
 
       <footer className="composer">
+        <div className="upload-row">
+          <button className="upload-btn" onClick={onUploadClick} disabled={uploading}>
+            {uploading ? 'Uploading...' : 'Upload PDF'}
+          </button>
+          <span className="upload-meta">
+            {uploading ? `Uploading ${lastUploadedName}` : lastUploadedName ? `Last: ${lastUploadedName}` : ''}
+          </span>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".pdf,application/pdf"
+            onChange={onFileSelected}
+            style={{ display: 'none' }}
+          />
+        </div>
         <div className="input-row">
           <textarea
             value={input}

@@ -158,6 +158,37 @@ body,
   padding: 10px 12px 16px;
 }
 
+.upload-row {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.upload-btn {
+  border: 1px solid #b9c0cf;
+  border-radius: 12px;
+  background: #eff2f8;
+  color: #1f2532;
+  padding: 8px 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.upload-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.upload-meta {
+  color: var(--muted);
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .input-row {
   display: grid;
   grid-template-columns: 1fr auto;
@@ -190,6 +221,15 @@ textarea {
   .tab-btn {
     font-size: 14px;
     padding: 8px 4px;
+  }
+
+  .upload-row {
+    grid-template-columns: 1fr;
+    align-items: stretch;
+  }
+
+  .upload-meta {
+    white-space: normal;
   }
 
   .chat-panel {
