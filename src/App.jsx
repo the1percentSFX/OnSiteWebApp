@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 
 const tabs = ['Feed', 'Home', 'Drawings', 'Documents']
 
@@ -15,6 +15,7 @@ const DEFAULT_JOBSITE = import.meta.env.VITE_DEFAULT_JOBSITE_ID || 'twujobsite'
 const DEFAULT_EMAIL = import.meta.env.VITE_DEFAULT_USER_EMAIL || ''
 const MAX_STATUS_POLLS = 30
 const STATUS_POLL_INTERVAL_MS = 3000
+const CHAT_STATE_KEY = 'onsite_web_chat_state_v1'
 
 function createSessionId() {
   if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID()
@@ -53,20 +54,75 @@ function buildPreviewUrl(url) {
   return value
 }
 
+function isMobileViewport() {
+  if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return false
+  return window.matchMedia('(max-width: 680px)').matches
+}
+
+function loadChatState() {
+  try {
+    const raw = localStorage.getItem(CHAT_STATE_KEY)
+    if (!raw) return null
+    const parsed = JSON.parse(raw)
+    if (!parsed || typeof parsed !== 'object') return null
+
+    const messages = Array.isArray(parsed.messages)
+      ? parsed.messages
+          .filter((m) => m && (m.role === 'assistant' || m.role === 'user') && typeof m.text === 'string')
+          .map((m) => ({ id: m.id || `m-${Date.now()}`, role: m.role, text: m.text }))
+      : []
+
+    const documents = Array.isArray(parsed.documents) ? parsed.documents : []
+    const input = typeof parsed.input === 'string' ? parsed.input : ''
+    const lastUploadedName = typeof parsed.lastUploadedName === 'string' ? parsed.lastUploadedName : ''
+
+    return {
+      messages,
+      documents,
+      input,
+      lastUploadedName,
+    }
+  } catch {
+    return null
+  }
+}
+
+function persistChatState(state) {
+  try {
+    localStorage.setItem(CHAT_STATE_KEY, JSON.stringify(state))
+  } catch {
+    // Ignore storage failures.
+  }
+}
+
 export default function App() {
+  const initialState = useMemo(() => loadChatState(), [])
+
   const [activeTab, setActiveTab] = useState('Home')
-  const [messages, setMessages] = useState([
-    { id: 'm1', role: 'assistant', text: 'Hello! Ask me about your project documents.' }
-  ])
-  const [documents, setDocuments] = useState([])
-  const [input, setInput] = useState('')
+  const [messages, setMessages] = useState(
+    initialState?.messages?.length
+      ? initialState.messages
+      : [{ id: 'm1', role: 'assistant', text: 'Hello! Ask me about your project documents.' }]
+  )
+  const [documents, setDocuments] = useState(initialState?.documents || [])
+  const [input, setInput] = useState(initialState?.input || '')
   const [loading, setLoading] = useState(false)
   const [uploading, setUploading] = useState(false)
-  const [lastUploadedName, setLastUploadedName] = useState('')
+  const [lastUploadedName, setLastUploadedName] = useState(initialState?.lastUploadedName || '')
   const [sourcePreview, setSourcePreview] = useState(null)
   const fileInputRef = useRef(null)
 
   const sessionId = useMemo(() => getSessionId(), [])
+
+  useEffect(() => {
+    persistChatState({
+      messages: messages.slice(-60).map((m) => ({ id: m.id, role: m.role, text: m.text })),
+      documents: documents.slice(0, 10),
+      input,
+      lastUploadedName,
+      savedAt: Date.now(),
+    })
+  }, [messages, documents, input, lastUploadedName])
 
   function addAssistantMessage(text) {
     setMessages((prev) => [...prev, { id: `a-${Date.now()}-${prev.length}`, role: 'assistant', text }])
@@ -225,7 +281,8 @@ export default function App() {
     setSourcePreview({
       previewUrl: buildPreviewUrl(url),
       rawUrl: url,
-      title: title || 'Source Document'
+      title: title || 'Source Document',
+      mobile: isMobileViewport(),
     })
   }
 
@@ -320,11 +377,24 @@ export default function App() {
                 </a>
               </div>
             </header>
-            <iframe
-              className="source-frame"
-              title={sourcePreview.title}
-              src={sourcePreview.previewUrl}
-            />
+
+            {sourcePreview.mobile ? (
+              <div className="source-mobile-body">
+                <p className="source-mobile-note">
+                  Mobile preview is simplified for stability. Open the document in a new tab and return here; your chat will stay saved.
+                </p>
+                <a className="source-mobile-open" href={sourcePreview.rawUrl} target="_blank" rel="noreferrer">
+                  Open Document
+                </a>
+              </div>
+            ) : (
+              <iframe
+                className="source-frame"
+                title={sourcePreview.title}
+                src={sourcePreview.previewUrl}
+              />
+            )}
+
             <button
               type="button"
               className="source-close-fab"
