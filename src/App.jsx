@@ -153,7 +153,10 @@ export default function App() {
     if (!query || loading) return
 
     const userMessage = { id: `u-${Date.now()}`, role: 'user', text: query }
-    setMessages((prev) => [...prev, userMessage])
+    const pendingId = `p-${Date.now()}`
+    const pendingMessage = { id: pendingId, role: 'assistant', text: 'OnSite is thinking', pending: true }
+
+    setMessages((prev) => [...prev, userMessage, pendingMessage])
     setInput('')
     setLoading(true)
 
@@ -177,20 +180,25 @@ export default function App() {
 
       const data = await res.json()
       const responseText = data?.response || data?.message || 'No response returned.'
-      const assistantMessage = { id: `a-${Date.now()}`, role: 'assistant', text: responseText }
-      setMessages((prev) => [...prev, assistantMessage])
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === pendingId
+            ? { id: `a-${Date.now()}`, role: 'assistant', text: responseText }
+            : m
+        )
+      )
       setDocuments(Array.isArray(data?.documents) ? data.documents : [])
     } catch (err) {
       const fallback = 'Request failed. Check network/API URL and try again.'
       const detail = err instanceof Error && err.message ? err.message : ''
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: `e-${Date.now()}`,
-          role: 'assistant',
-          text: detail ? `${fallback}\n${detail}` : fallback
-        }
-      ])
+      const errorText = detail ? `${fallback}\n${detail}` : fallback
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === pendingId
+            ? { id: `e-${Date.now()}`, role: 'assistant', text: errorText }
+            : m
+        )
+      )
     } finally {
       setLoading(false)
     }
@@ -235,7 +243,20 @@ export default function App() {
           <div className="messages">
             {messages.map((m) => (
               <div key={m.id} className={`bubble-row ${m.role === 'user' ? 'user' : 'assistant'}`}>
-                <div className={`bubble ${m.role}`}>{m.text}</div>
+                <div className={`bubble ${m.role} ${m.pending ? 'pending' : ''}`}>
+                  {m.pending ? (
+                    <div className="thinking-wrap">
+                      <span className="thinking-text">{m.text}</span>
+                      <span className="thinking-dots" aria-hidden="true">
+                        <span />
+                        <span />
+                        <span />
+                      </span>
+                    </div>
+                  ) : (
+                    m.text
+                  )}
+                </div>
               </div>
             ))}
           </div>
