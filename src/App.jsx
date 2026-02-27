@@ -44,6 +44,15 @@ function deriveTitleFromFilename(filename) {
   return filename.replace(/\.pdf$/i, '').trim() || filename
 }
 
+function buildPreviewUrl(url) {
+  const value = String(url || '').trim()
+  if (!value) return ''
+  if (/\.pdf(?:$|[?#])/i.test(value) && !value.includes('#')) {
+    return `${value}#view=FitH&navpanes=0`
+  }
+  return value
+}
+
 export default function App() {
   const [activeTab, setActiveTab] = useState('Home')
   const [messages, setMessages] = useState([
@@ -213,7 +222,11 @@ export default function App() {
 
   function openSourcePreview(url, title) {
     if (!url) return
-    setSourcePreview({ url, title: title || 'Source Document' })
+    setSourcePreview({
+      previewUrl: buildPreviewUrl(url),
+      rawUrl: url,
+      title: title || 'Source Document'
+    })
   }
 
   function closeSourcePreview() {
@@ -302,19 +315,24 @@ export default function App() {
             <header className="source-modal-header">
               <p className="source-modal-title">{sourcePreview.title}</p>
               <div className="source-modal-actions">
-                <a className="doc-link" href={sourcePreview.url} target="_blank" rel="noreferrer">
+                <a className="doc-link" href={sourcePreview.rawUrl} target="_blank" rel="noreferrer">
                   Open in new tab
                 </a>
-                <button type="button" className="source-close-btn" onClick={closeSourcePreview}>
-                  Close
-                </button>
               </div>
             </header>
             <iframe
               className="source-frame"
               title={sourcePreview.title}
-              src={sourcePreview.url}
+              src={sourcePreview.previewUrl}
             />
+            <button
+              type="button"
+              className="source-close-fab"
+              aria-label="Close source preview"
+              onClick={closeSourcePreview}
+            >
+              Close
+            </button>
           </article>
         </section>
       )}
