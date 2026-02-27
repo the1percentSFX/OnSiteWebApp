@@ -54,6 +54,7 @@ export default function App() {
   const [loading, setLoading] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [lastUploadedName, setLastUploadedName] = useState('')
+  const [sourcePreview, setSourcePreview] = useState(null)
   const fileInputRef = useRef(null)
 
   const sessionId = useMemo(() => getSessionId(), [])
@@ -202,6 +203,15 @@ export default function App() {
     }
   }
 
+  function openSourcePreview(url, title) {
+    if (!url) return
+    setSourcePreview({ url, title: title || 'Source Document' })
+  }
+
+  function closeSourcePreview() {
+    setSourcePreview(null)
+  }
+
   return (
     <div className="app-shell">
       <header className="top-bar">
@@ -241,9 +251,13 @@ export default function App() {
                     <p className="doc-title">{title}</p>
                     <p className="doc-snippet">{clip(doc.text || '')}</p>
                     {url ? (
-                      <a className="doc-link" href={url} target="_blank" rel="noreferrer">
+                      <button
+                        type="button"
+                        className="doc-link as-button"
+                        onClick={() => openSourcePreview(url, title)}
+                      >
                         View source
-                      </a>
+                      </button>
                     ) : (
                       <p className="doc-link muted">No source URL</p>
                     )}
@@ -254,6 +268,35 @@ export default function App() {
           )}
         </section>
       </main>
+
+      {sourcePreview && (
+        <section className="source-modal-backdrop" onClick={closeSourcePreview}>
+          <article
+            className="source-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Source document preview"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <header className="source-modal-header">
+              <p className="source-modal-title">{sourcePreview.title}</p>
+              <div className="source-modal-actions">
+                <a className="doc-link" href={sourcePreview.url} target="_blank" rel="noreferrer">
+                  Open in new tab
+                </a>
+                <button type="button" className="source-close-btn" onClick={closeSourcePreview}>
+                  Close
+                </button>
+              </div>
+            </header>
+            <iframe
+              className="source-frame"
+              title={sourcePreview.title}
+              src={sourcePreview.url}
+            />
+          </article>
+        </section>
+      )}
 
       <footer className="composer">
         <div className="upload-row">
