@@ -54,6 +54,12 @@ function buildPreviewUrl(url) {
   return value
 }
 
+function stripSourcesFromReply(text, hasDocumentCards) {
+  const value = String(text || '')
+  if (!hasDocumentCards) return value
+  return value.replace(/(?:\n|^)\s*Sources:\s*[\s\S]*$/i, '').trim()
+}
+
 function isMobileViewport() {
   if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return false
   return window.matchMedia('(max-width: 680px)').matches
@@ -72,7 +78,7 @@ function loadChatState() {
           .map((m) => ({ id: m.id || `m-${Date.now()}`, role: m.role, text: m.text }))
       : []
 
-    const documents = Array.isArray(parsed.documents) ? parsed.documents : []
+    const documents = []
     const input = typeof parsed.input === 'string' ? parsed.input : ''
     const lastUploadedName = typeof parsed.lastUploadedName === 'string' ? parsed.lastUploadedName : ''
 
@@ -117,7 +123,7 @@ export default function App() {
   useEffect(() => {
     persistChatState({
       messages: messages.slice(-60).map((m) => ({ id: m.id, role: m.role, text: m.text })),
-      documents: documents.slice(0, 10),
+      documents: [],
       input,
       lastUploadedName,
       savedAt: Date.now(),
@@ -222,6 +228,7 @@ export default function App() {
     const pendingMessage = { id: pendingId, role: 'assistant', text: 'OnSite is thinking', pending: true }
 
     setMessages((prev) => [...prev, userMessage, pendingMessage])
+    setDocuments([])
     setInput('')
     setLoading(true)
 
@@ -244,7 +251,11 @@ export default function App() {
       }
 
       const data = await res.json()
-      const responseText = data?.response || data?.message || 'No response returned.'
+      const nextDocuments = Array.isArray(data?.documents) ? data.documents : []
+      const responseText = stripSourcesFromReply(
+        data?.response || data?.message || 'No response returned.',
+        nextDocuments.length > 0
+      )
       setMessages((prev) =>
         prev.map((m) =>
           m.id === pendingId
@@ -252,7 +263,7 @@ export default function App() {
             : m
         )
       )
-      setDocuments(Array.isArray(data?.documents) ? data.documents : [])
+      setDocuments(nextDocuments)
     } catch (err) {
       const fallback = 'Request failed. Check network/API URL and try again.'
       const detail = err instanceof Error && err.message ? err.message : ''
