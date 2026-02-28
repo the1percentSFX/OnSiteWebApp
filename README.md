@@ -18,6 +18,7 @@ Mobile-first web app that mirrors the iOS app layout and uses the same backend s
    - `npm run dev`
 
 ## Env vars
+- `VITE_FIREBASE_API_KEY` (required for Firebase email/password login)
 - `VITE_FEEDHANDLER_BASE_URL` (use `/api` in local dev)
 - `VITE_PROXY_TARGET` (FeedHandler URL used by Vite proxy)
 - `VITE_DEFAULT_JOBSITE_ID` (default `twujobsite`)
@@ -29,3 +30,8 @@ Mobile-first web app that mirrors the iOS app layout and uses the same backend s
 - Implement Drawings/Documents list + filters
 - Preserve exact iOS visual tokens and spacing
 - Add PWA manifest/offline caching
+
+## Security
+- Do not hardcode Firebase API keys in source files.
+- Configure key restrictions in Google Cloud Console (HTTP referrers) for your Vercel domains.
+- If a key was exposed publicly, rotate it and update `VITE_FIREBASE_API_KEY` in Vercel environment variables.

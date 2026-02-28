@@ -12,9 +12,7 @@ const FEEDHANDLER_BASE = (() => {
     : 'https://onsitexfeedhandler-production.up.railway.app'
 })()
 
-const FIREBASE_API_KEY =
-  (import.meta.env.VITE_FIREBASE_API_KEY || '').trim() ||
-  'AIzaSyAMDaz2tnr805-X7IN682MuK6COqIdEg9c'
+const FIREBASE_API_KEY = (import.meta.env.VITE_FIREBASE_API_KEY || '').trim()
 
 const DEFAULT_JOBSITE = import.meta.env.VITE_DEFAULT_JOBSITE_ID || 'twujobsite'
 const DEFAULT_EMAIL = import.meta.env.VITE_DEFAULT_USER_EMAIL || ''
