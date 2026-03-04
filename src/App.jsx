@@ -40,6 +40,31 @@ function clip(text, max = 220) {
   return text.length > max ? `${text.slice(0, max)}...` : text
 }
 
+function formatTimelineTime(value) {
+  const raw = String(value || '').trim()
+  if (!raw) return ''
+  const date = new Date(raw)
+  if (Number.isNaN(date.getTime())) return raw
+  return date.toLocaleString([], {
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  })
+}
+
+function timelineSourceUrl(event) {
+  if (!event || typeof event !== 'object') return ''
+  const direct = String(event.source_url || event.sourceUrl || '').trim()
+  if (direct) return direct
+  const docs = Array.isArray(event.documents) ? event.documents : []
+  for (const doc of docs) {
+    const url = String(doc?.file_url || doc?.fileUrl || '').trim()
+    if (url) return url
+  }
+  return ''
+}
+
 function wait(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
@@ -198,6 +223,9 @@ export default function App() {
   const [uploading, setUploading] = useState(false)
   const [lastUploadedName, setLastUploadedName] = useState(initialState?.lastUploadedName || '')
   const [sourcePreview, setSourcePreview] = useState(null)
+  const [timelineEvents, setTimelineEvents] = useState([])
+  const [timelineLoading, setTimelineLoading] = useState(false)
+  const [timelineError, setTimelineError] = useState('')
 
   const [auth, setAuth] = useState(() => loadAuthState())
   const [loginEmail, setLoginEmail] = useState(() => loadAuthState()?.email || DEFAULT_EMAIL || '')
@@ -230,6 +258,37 @@ export default function App() {
   useEffect(() => {
     persistAuthState(auth)
   }, [auth])
+
+  async function fetchOfficeTimeline({ quiet = false } = {}) {
+    if (!currentUserEmail) {
+      setTimelineEvents([])
+      setTimelineError('')
+      return
+    }
+    if (!quiet) setTimelineLoading(true)
+    setTimelineError('')
+    try {
+      const endpoint = `${FEEDHANDLER_BASE.replace(/\/$/, '')}/office_timeline/?jobsite_id=${encodeURIComponent(DEFAULT_JOBSITE)}&user_email=${encodeURIComponent(currentUserEmail)}&limit=20`
+      const res = await fetch(endpoint, { method: 'GET', headers: authHeaders })
+      if (!res.ok) {
+        const text = await res.text()
+        throw new Error(`HTTP ${res.status}${text ? `: ${text}` : ''}`)
+      }
+      const data = await res.json()
+      const next = Array.isArray(data?.events) ? data.events : []
+      setTimelineEvents(next)
+    } catch (err) {
+      const detail = err instanceof Error ? err.message : 'Timeline request failed.'
+      setTimelineError(detail)
+    } finally {
+      if (!quiet) setTimelineLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    fetchOfficeTimeline()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentUserEmail, auth?.idToken])
 
   function addAssistantMessage(text) {
     setMessages((prev) => [...prev, { id: `a-${Date.now()}-${prev.length}`, role: 'assistant', text }])
@@ -336,6 +395,7 @@ export default function App() {
           `Upload started for ${file.name}, but indexing is still running.\nYou can ask now, but results may improve in a minute.`
         )
       }
+      fetchOfficeTimeline({ quiet: true })
     } catch (err) {
       const detail = err instanceof Error && err.message ? err.message : 'Unknown upload error'
       addAssistantMessage(`Upload failed for ${file.name}\n${detail}`)
@@ -411,6 +471,7 @@ export default function App() {
         )
       )
       setDocuments(nextDocuments)
+      fetchOfficeTimeline({ quiet: true })
     } catch (err) {
       const fallback = 'Request failed. Check network/API URL and try again.'
       const detail = err instanceof Error && err.message ? err.message : ''
@@ -553,6 +614,50 @@ export default function App() {
                 )
               })}
             </section>
+          )}
+        </section>
+
+        <section className="timeline-panel">
+          <div className="timeline-header">
+            <h3>Office Timeline</h3>
+            {timelineLoading ? <span className="timeline-status">Updating...</span> : null}
+          </div>
+          {timelineError ? <p className="timeline-error">Timeline error: {timelineError}</p> : null}
+          {timelineEvents.length === 0 ? (
+            <p className="timeline-empty">No timeline activity yet.</p>
+          ) : (
+            timelineEvents.map((event, idx) => {
+              const eventId = event.id || `${event.type || 'event'}-${event.created_at_epoch || idx}-${idx}`
+              const eventType = event.type === 'document_upload' ? 'Document upload' : 'Chat'
+              const actor = String(event.user_email || '').trim()
+              const sourceUrl = timelineSourceUrl(event)
+              return (
+                <article key={eventId} className="timeline-card">
+                  <p className="timeline-meta">
+                    <span>{eventType}</span>
+                    <span>{formatTimelineTime(event.created_at_iso || event.created_at)}</span>
+                  </p>
+                  {actor ? <p className="timeline-actor">{actor}</p> : null}
+                  {event.type === 'document_upload' ? (
+                    <p className="timeline-line">Uploaded: {event.title || event.document_id || 'Document'}</p>
+                  ) : (
+                    <>
+                      <p className="timeline-line"><strong>Q:</strong> {clip(event.query || '', 140)}</p>
+                      <p className="timeline-line"><strong>A:</strong> {clip(event.response || '', 220)}</p>
+                    </>
+                  )}
+                  {sourceUrl ? (
+                    <button
+                      type="button"
+                      className="doc-link as-button"
+                      onClick={() => openSourcePreview(sourceUrl, event.title || 'Timeline source')}
+                    >
+                      View source
+                    </button>
+                  ) : null}
+                </article>
+              )
+            })
           )}
         </section>
       </main>

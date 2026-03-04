@@ -291,6 +291,76 @@ body {
   color: #9aa0ad;
 }
 
+.timeline-panel {
+  margin-top: 16px;
+  border-top: 1px solid #d0d2da;
+  padding-top: 12px;
+}
+
+.timeline-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.timeline-panel h3 {
+  margin: 0 0 8px;
+  font-size: 16px;
+}
+
+.timeline-status {
+  color: #56607a;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.timeline-error {
+  margin: 0 0 8px;
+  color: #b04242;
+  font-size: 13px;
+}
+
+.timeline-empty {
+  margin: 0;
+  color: #7f8594;
+  font-size: 14px;
+}
+
+.timeline-card {
+  background: #f8f9fc;
+  border: 1px solid #d8dbe4;
+  border-radius: 12px;
+  padding: 10px;
+  margin-bottom: 8px;
+}
+
+.timeline-meta {
+  margin: 0 0 6px;
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  color: #6a7183;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.timeline-actor {
+  margin: 0 0 6px;
+  font-size: 13px;
+  color: #4b5262;
+  overflow-wrap: anywhere;
+}
+
+.timeline-line {
+  margin: 0 0 6px;
+  font-size: 14px;
+  color: #1e2432;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
 .source-modal-backdrop {
   position: fixed;
   inset: 0;
